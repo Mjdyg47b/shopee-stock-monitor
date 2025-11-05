@@ -2,11 +2,11 @@ name: Shopee Stock Monitor
 
 on:
   schedule:
-    # Jalankan setiap 15 menit
     - cron: '*/15 * * * *'
-  
-  # Trigger manual
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   monitor:
