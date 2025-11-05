@@ -1,4 +1,3 @@
-
 import requests
 import json
 import os
@@ -6,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Konfigurasi dari Environment Variables
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8226924685:AAHuVRWe4mSbzjkWwGohSJ7RsISTiwRQsPM')
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8226924685:AAGACsPrGvqSI4iJ4AJyvERPBdK8wM0ICCM')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '6328135369')
 
 # State file untuk tracking perubahan
@@ -69,15 +68,16 @@ def get_product_info(shop_id, item_id):
         print(f"❌ Unexpected error: {e}")
         return None
 
-def send_telegram_message(message):
-    """Kirim notifikasi ke Telegram"""
+def send_telegram_message(message, disable_notification=False):
+    """Kirim notifikasi ke Telegram dengan opsi bunyi"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     
     payload = {
         'chat_id': TELEGRAM_CHAT_ID,
         'text': message,
         'parse_mode': 'HTML',
-        'disable_web_page_preview': False
+        'disable_web_page_preview': False,
+        'disable_notification': disable_notification  # ✅ FITUR BARU: Kontrol bunyi notifikasi
     }
     
     try:
@@ -89,10 +89,17 @@ def send_telegram_message(message):
         print(f"❌ Failed to send Telegram message: {e}")
         return False
 
-def format_notification(product_info, product_config, status_changed=False):
+def format_notification(product_info, product_config, status_changed=False, now_available=False):
     """Format pesan notifikasi"""
     stock_status = "✅ TERSEDIA" if product_info['stock'] > 0 else "❌ HABIS"
-    status_emoji = "🔔" if status_changed else "ℹ️"
+    
+    # ✅ FITUR BARU: Emoji berbeda untuk status available
+    if now_available:
+        status_emoji = "🔔🎉"  # Extra emoji untuk produk ready!
+    elif status_changed:
+        status_emoji = "🔔"
+    else:
+        status_emoji = "ℹ️"
     
     message = f"""{status_emoji} <b>NOTIFIKASI STOK SHOPEE</b>
 
@@ -108,7 +115,10 @@ def format_notification(product_info, product_config, status_changed=False):
 ⏰ <b>Waktu:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB
 """
     
-    if status_changed:
+    # ✅ FITUR BARU: Pesan khusus saat produk ready!
+    if now_available:
+        message += "\n🎉 <b>PRODUK SEKARANG TERSEDIA!</b> 🎉\n⚡ <b>BURUAN CEK SEKARANG!</b> ⚡"
+    elif status_changed:
         message += "\n⚡ <b>STATUS BERUBAH!</b> Cek sekarang!"
     
     return message
@@ -138,6 +148,7 @@ def monitor_products():
         # Cek apakah ada perubahan status
         product_key = f"{shop_id}_{item_id}"
         status_changed = False
+        now_available = False  # ✅ FITUR BARU: Track jika produk jadi available
         
         if product_key in state:
             old_stock = state[product_key].get('stock', 0)
@@ -146,10 +157,18 @@ def monitor_products():
             
             if old_available != new_available:
                 status_changed = True
+                # ✅ FITUR BARU: Deteksi jika produk sekarang ready (dari habis jadi ada)
+                if not old_available and new_available:
+                    now_available = True
+                    print("   🎉 PRODUCT NOW AVAILABLE!")
+                elif old_available and not new_available:
+                    print("   ⚠️ Product now OUT OF STOCK!")
                 print("   🔔 STATUS CHANGED!")
         else:
-            # Pertama kali monitor, kirim notifikasi
+            # Pertama kali monitor
             status_changed = True
+            if product_info['stock'] > 0:
+                now_available = True
             print("   🆕 First time monitoring this product")
         
         # Update state
@@ -159,10 +178,23 @@ def monitor_products():
             'name': product_info['name']
         }
         
-        # Kirim notifikasi jika ada perubahan
+        # ✅ FITUR BARU: Kirim notifikasi dengan bunyi hanya jika produk ready!
         if status_changed:
-            message = format_notification(product_info, product, status_changed=True)
-            send_telegram_message(message)
+            message = format_notification(
+                product_info, 
+                product, 
+                status_changed=True, 
+                now_available=now_available
+            )
+            # Bunyi notifikasi AKTIF hanya jika produk ready (now_available=True)
+            # Jika produk habis, notifikasi silent (disable_notification=True)
+            disable_sound = not now_available
+            send_telegram_message(message, disable_notification=disable_sound)
+            
+            if now_available:
+                print("   🔔 NOTIFICATION SENT WITH SOUND (Product Available!)")
+            else:
+                print("   🔕 NOTIFICATION SENT WITHOUT SOUND (Product Out of Stock)")
         else:
             print("   ℹ️ No status change, no notification sent")
     
