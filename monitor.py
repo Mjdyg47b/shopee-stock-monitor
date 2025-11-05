@@ -8,7 +8,7 @@ import os
 import json
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Optional, Any
 import requests
 
@@ -141,7 +141,6 @@ def format_notification(product_info: Dict[str, Any], product_url: str, status_c
     status_emoji = "✅ TERSEDIA" if product_info['is_available'] else "❌ HABIS"
     
     # Get current time in WIB (UTC+7)
-    from datetime import timezone, timedelta
     wib = timezone(timedelta(hours=7))
     current_time = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
     
