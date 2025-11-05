@@ -2,9 +2,13 @@ name: Shopee Stock Monitor
 
 on:
   schedule:
+    # Jalankan setiap 15 menit
     - cron: '*/15 * * * *'
+  
+  # Trigger manual
   workflow_dispatch:
 
+# ✅ TAMBAHAN BARU: Permission untuk auto-commit
 permissions:
   contents: write
 
@@ -35,6 +39,14 @@ jobs:
       run: |
         python monitor.py
     
+    - name: Commit state file
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add stock_state.json
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update stock state [skip ci]"
+        git push
+      continue-on-error: true    
     - name: Commit state file
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
